@@ -79,14 +79,16 @@ python -m pip install sentence-transformers
 
 ## Deploy frontend on Vercel
 
-Deploy the **React (Vite) frontend** to Vercel. The chat UI will call a backend API; you need to run the backend elsewhere and point the frontend to it.
+Deploy **only the React (Vite) frontend** to Vercel. The chat UI will call a backend API; you must run the backend on a different platform (see below).
 
-1. **Deploy the backend** (FastAPI) on Render, Railway, Fly.io, or similar:
+**Do not deploy the FastAPI backend on Vercel.** Vercel uses AWS Lambda, which has a **500 MB ephemeral storage limit**. This project’s dependencies (e.g. `sentence-transformers`, PyTorch) are much larger (~7GB), so the backend will not fit. Deploy the backend on **Render**, **Railway**, **Fly.io**, or similar instead.
+
+1. **Deploy the backend (FastAPI) on Render, Railway, or Fly.io** (not Vercel):
    - Use the same repo; run `uvicorn backend.app:app --host 0.0.0.0 --port 8000` (or the port your host uses).
    - Set `OPENROUTER_API_KEY` (and optional `OPENROUTER_BASE_URL`, `OPENROUTER_CHAT_MODEL`) in the host’s environment.
    - Ensure the knowledge base exists (run fetch_pages, parse_pages, build_embeddings once, or include `data/kb.sqlite` in the deploy).
 
-2. **Deploy the frontend on Vercel:**
+2. **Deploy only the frontend on Vercel** (Root Directory = `frontend`):
    - Go to [vercel.com](https://vercel.com), sign in, and **Add New Project**.
    - Import your GitHub repo.
    - Set **Root Directory** to `frontend` (or leave root and set Build/Output in the next step).
