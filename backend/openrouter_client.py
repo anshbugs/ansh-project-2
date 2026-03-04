@@ -3,48 +3,56 @@ from __future__ import annotations
 """
 OpenRouter client for embeddings (Phase 2) and chat (Phase 3).
 
-Uses env vars from .env:
-- OPENROUTER_API_KEY
-- OPENROUTER_BASE_URL (default: https://openrouter.ai/api/v1)
-- OPENROUTER_EMBED_MODEL (e.g. sentence-transformers/all-MiniLM-L6-v2)
-- OPENROUTER_CHAT_MODEL (e.g. mistralai/mistral-7b-instruct:free)
+API keys and URL/model come from backend.config (get_env):
+- Local: .env
+- Streamlit Cloud: st.secrets
+
+Required OpenRouter headers are sent on every request to avoid 401.
 """
 
 import logging
-import os
-from pathlib import Path
 from typing import List, Optional
 
 import requests
-from dotenv import load_dotenv
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-load_dotenv(_PROJECT_ROOT / ".env", override=True)
+from backend.config import (
+    OPENROUTER_API_KEY,
+    OPENROUTER_BASE_URL,
+    OPENROUTER_CHAT_MODEL,
+)
 
 logger = logging.getLogger(__name__)
 
-OPENROUTER_API_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
-OPENROUTER_EMBED_MODEL = os.getenv("OPENROUTER_EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
-OPENROUTER_CHAT_MODEL = os.getenv("OPENROUTER_CHAT_MODEL", "mistralai/mistral-7b-instruct")
+# Embeddings model (local sentence-transformers used in practice; this is fallback if OpenRouter embeddings were used)
+OPENROUTER_EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 
 def get_openrouter_api_key() -> str:
-    api_key = os.getenv("OPENROUTER_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENROUTER_API_KEY not set in .env")
-    return api_key
+    """Return the OpenRouter API key from config; raise if missing or empty."""
+    if not OPENROUTER_API_KEY or not str(OPENROUTER_API_KEY).strip():
+        raise RuntimeError(
+            "OPENROUTER_API_KEY not set. Add it to .env (local) or Streamlit Secrets (OPENROUTER_API_KEY) when deployed."
+        )
+    return str(OPENROUTER_API_KEY).strip()
+
+
+def _openrouter_headers() -> dict:
+    """Required OpenRouter headers for hosted apps (e.g. Streamlit Cloud); missing them can cause 401."""
+    api_key = get_openrouter_api_key()
+    return {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://streamlit.io",
+        "X-Title": "Groww-Mutual-Fund-Assistant",
+    }
 
 
 def embed_texts(texts: List[str]) -> List[List[float]]:
     """Batch-embed a list of texts via OpenRouter /embeddings."""
     if not texts:
         return []
-    api_key = get_openrouter_api_key()
-    url = f"{OPENROUTER_API_BASE_URL}/embeddings"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
+    url = f"{OPENROUTER_BASE_URL}/embeddings"
+    headers = _openrouter_headers()
     payload = {
         "model": OPENROUTER_EMBED_MODEL,
         "input": texts,
@@ -77,12 +85,8 @@ def generate_content(
     context_text: Optional[str] = None,
 ) -> str:
     """Call OpenRouter chat/completions to produce a single reply."""
-    api_key = get_openrouter_api_key()
-    url = f"{OPENROUTER_API_BASE_URL}/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
+    url = f"{OPENROUTER_BASE_URL}/chat/completions"
+    headers = _openrouter_headers()
 
     content = user_text
     if context_text:

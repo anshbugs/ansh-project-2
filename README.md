@@ -63,7 +63,7 @@ python -m pip install sentence-transformers
 3. Connect the repo and set:
    - **Main file path:** `streamlit_app.py`
    - **Branch:** your default branch
-4. Add **Secrets** (in the app's settings or **Settings → Secrets**) so the app can read your API key. For example:
+4. Add **Secrets** (in the app's settings or **Settings → Secrets**) so the app can read your API key. **If you see "OPENROUTER_API_KEY not set", add the key here.** For example:
 
    ```toml
    OPENROUTER_API_KEY = "your-openrouter-api-key"
@@ -74,3 +74,5 @@ python -m pip install sentence-transformers
 5. Deploy. The first run will install dependencies from `requirements.txt` and download the sentence-transformers model; this can take a few minutes.
 
 **Note:** The app needs the SQLite knowledge base (`data/kb.sqlite`) and embeddings. Either run the ingestion and embedding scripts locally and commit `data/kb.sqlite` to the repo (simple but the file can be large), or add a build step that runs fetch → parse → build_embeddings on first start.
+
+**Optional:** To avoid the "unauthenticated requests to the HF Hub" warning and get faster model downloads, add `HF_TOKEN` to your Streamlit Secrets (create a token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)).

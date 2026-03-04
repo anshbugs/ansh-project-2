@@ -1,16 +1,22 @@
 """
 Groww Mutual Fund FAQ Chat — Streamlit app.
 
+Runs the RAG pipeline directly in-process: no backend API or localhost calls.
+- Imports backend.rag_orchestrator (classify → retrieve → generate).
+- OpenRouter is called from Streamlit via backend.openrouter_client.
+- Embeddings and retriever are unchanged (local embeddings + SQLite).
+
 Run from project root:
     streamlit run streamlit_app.py
 
-Uses the same RAG backend (backend.rag_orchestrator) as the FastAPI app.
-UI matches the React ChatWidget layout and styles.
+On Streamlit Cloud: set OPENROUTER_API_KEY (and optionally OPENROUTER_BASE_URL,
+OPENROUTER_CHAT_MODEL) in App settings → Secrets.
 """
 
 from __future__ import annotations
 
 import html
+import os
 import sys
 from pathlib import Path
 
@@ -19,8 +25,30 @@ _ROOT = Path(__file__).resolve().parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+# Reduce transformers/sentence-transformers load noise (e.g. "BertModel LOAD REPORT", UNEXPECTED keys)
+os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+
 import streamlit as st
+
+# Load Streamlit secrets into env so backend can use them (e.g. on Streamlit Cloud)
+try:
+    if hasattr(st, "secrets") and st.secrets:
+        for key in ("OPENROUTER_API_KEY", "OPENROUTER_BASE_URL", "OPENROUTER_CHAT_MODEL"):
+            try:
+                val = st.secrets.get(key)
+                if val and (not os.environ.get(key) or not str(os.environ.get(key)).strip()):
+                    os.environ[key] = str(val).strip()
+            except Exception:
+                pass
+except Exception:
+    pass
+
+from backend.config import OPENROUTER_API_KEY
 from backend.rag_orchestrator import chat, ChatResponse
+
+# Debug check: fail fast if API key did not load (local .env or Streamlit secrets)
+if OPENROUTER_API_KEY is None or not str(OPENROUTER_API_KEY).strip():
+    raise RuntimeError("OpenRouter API key not loaded. Add OPENROUTER_API_KEY to .env (local) or Streamlit Secrets (deployed).")
 
 st.set_page_config(
     page_title="Groww MF Assistant",
@@ -147,10 +175,69 @@ header { visibility: hidden; }
 .msg-source-link { color: #93c5fd; text-decoration: none; }
 .msg-source-link:hover { text-decoration: underline; }
 
-/* ----- Chat input area (Streamlit places at bottom) ----- */
-.stChatInput > div { background: rgba(15, 23, 42, 0.96) !important; border-top: 1px solid rgba(148, 163, 184, 0.25) !important; padding: 8px 16px 12px !important; }
-.stChatInput input, .stChatInput textarea { background: rgba(15, 23, 42, 0.9) !important; color: #e5e7eb !important; border: 1px solid rgba(148, 163, 184, 0.6) !important; border-radius: 14px !important; }
-.stChatInput button { background: linear-gradient(135deg, #22c55e, #16a34a) !important; color: #022c22 !important; font-weight: 600 !important; border-radius: 999px !important; }
+/* ----- Premium chat input form: type bar + Send button ----- */
+.main .block-container form {
+  padding: 12px 16px 16px !important;
+  border-top: 1px solid rgba(148, 163, 184, 0.25) !important;
+  background: rgba(15, 23, 42, 0.96) !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+}
+.main .block-container form > div {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: stretch !important;
+  gap: 10px !important;
+}
+.main .block-container form [data-testid="column"] {
+  min-width: 0 !important;
+}
+.main .block-container form input[type="text"],
+.main .block-container form textarea {
+  background: rgba(15, 23, 42, 0.95) !important;
+  color: #e5e7eb !important;
+  border: 1px solid rgba(148, 163, 184, 0.5) !important;
+  border-radius: 14px !important;
+  font-size: 14px !important;
+  padding: 12px 14px !important;
+  min-height: 48px !important;
+  width: 100% !important;
+}
+.main .block-container form input[type="text"]:focus,
+.main .block-container form textarea:focus {
+  border-color: #22c55e !important;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25) !important;
+}
+.main .block-container form input::placeholder,
+.main .block-container form textarea::placeholder {
+  color: #9ca3af !important;
+}
+/* Send button – prominent, same row as input */
+.main .block-container form button[kind="primary"] {
+  background: linear-gradient(135deg, #22c55e, #16a34a) !important;
+  color: #022c22 !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  border-radius: 14px !important;
+  padding: 12px 20px !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.35) !important;
+  min-height: 48px !important;
+  align-self: stretch !important;
+  white-space: nowrap !important;
+}
+.main .block-container form button[kind="primary"]:hover {
+  background: linear-gradient(135deg, #16a34a, #15803d) !important;
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4) !important;
+}
+.main .block-container form button[kind="primary"]:disabled {
+  opacity: 0.6 !important;
+}
+/* Keep Send button column wide enough */
+.main .block-container form [data-testid="column"]:last-child {
+  flex: 0 0 auto !important;
+  min-width: 90px !important;
+}
 
 /* ----- Footer note ----- */
 .streamlit-footer-note { padding: 4px 16px 14px; font-size: 10px; color: #9ca3af; border-top: 1px solid rgba(148, 163, 184, 0.25); background: rgba(15, 23, 42, 0.96); }
@@ -209,6 +296,24 @@ with st.container():
         unsafe_allow_html=True,
     )
 
+    # ----- Env check (safe: never shows key value) -----
+    with st.expander("Check env / API key visible to app"):
+        _key = (os.environ.get("OPENROUTER_API_KEY") or "").strip()
+        if _key:
+            st.success("OPENROUTER_API_KEY is **set** (length {} chars). Env is loading correctly.".format(len(_key)))
+            if _key.startswith("sk-or-"):
+                st.caption("Format looks like OpenRouter key.")
+            else:
+                st.warning("Key does not start with sk-or-. Check it is the correct OpenRouter key.")
+        else:
+            st.error("OPENROUTER_API_KEY is **not set**. Add it to .env (local) or Streamlit Secrets (Cloud).")
+        _base = (os.environ.get("OPENROUTER_BASE_URL") or "").strip()
+        _model = (os.environ.get("OPENROUTER_CHAT_MODEL") or "").strip()
+        st.caption("OPENROUTER_BASE_URL: {} | OPENROUTER_CHAT_MODEL: {}".format(
+            _base or "default",
+            _model or "default",
+        ))
+
     # ----- Try asking chips -----
     st.markdown(
         """
@@ -255,30 +360,46 @@ with st.container():
         unsafe_allow_html=True,
     )
 
-# ----- Chat input (Streamlit places it after the container) -----
-prompt = st.chat_input("Ask about HDFC mutual fund facts, charges, or definitions…")
+    # ----- Type bar + Send button (single row) -----
+    api_key_set = bool(OPENROUTER_API_KEY and str(OPENROUTER_API_KEY).strip())
+    with st.form("chat_form", clear_on_submit=True):
+        col_input, col_btn = st.columns([5, 1])
+        with col_input:
+            prompt = st.text_input(
+                "Message",
+                placeholder="Ask about HDFC mutual fund facts, charges, or definitions…",
+                key="chat_input",
+                label_visibility="collapsed",
+                disabled=not api_key_set,
+            )
+        with col_btn:
+            submitted = st.form_submit_button("Send")
+    if not api_key_set:
+        st.caption("Set **OPENROUTER_API_KEY** in Streamlit Secrets (App settings) to enable chat.")
 
-if prompt:
-    st.session_state.messages.append({"role": "user", "content": prompt, "source_url": None})
-    st.session_state.error = None
-    with st.spinner("Thinking…"):
-        try:
-            resp: ChatResponse = chat(prompt)
-            answer = resp.answer
-            source_url = resp.source_url or ""
-        except Exception as e:
-            err = str(e)
-            if "429" in err or "Too Many Requests" in err:
-                answer = "API rate limit exceeded. Please try again in a minute."
-                source_url = ""
-            else:
-                st.session_state.error = str(e)
-                answer = ""
-                source_url = ""
-    if answer:
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": answer,
-            "source_url": source_url or None,
-        })
-    st.rerun()
+    # ----- Handle Send -----
+    if submitted and prompt and prompt.strip():
+        user_msg = prompt.strip()
+        st.session_state.messages.append({"role": "user", "content": user_msg, "source_url": None})
+        st.session_state.error = None
+        with st.spinner("Thinking…"):
+            try:
+                resp: ChatResponse = chat(user_msg)
+                answer = resp.answer
+                source_url = resp.source_url or ""
+            except Exception as e:
+                err = str(e)
+                if "429" in err or "Too Many Requests" in err:
+                    answer = "API rate limit exceeded. Please try again in a minute."
+                    source_url = ""
+                else:
+                    st.session_state.error = str(e)
+                    answer = ""
+                    source_url = ""
+        if answer:
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": answer,
+                "source_url": source_url or None,
+            })
+        st.rerun()

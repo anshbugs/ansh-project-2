@@ -8,11 +8,50 @@ This module centralises:
 - High-level intent categories.
 - Phrases that indicate advice/opinion queries which must be refused.
 - Supported factual attribute types for scheme queries.
+- OpenRouter config (env + Streamlit secrets) for local and deployed runs.
 """
 
+import os
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Set
+from pathlib import Path
+from typing import List, Set, Optional
+
+from dotenv import load_dotenv
+
+# Load .env for local development (no effect if not present or when Streamlit has already set env)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(_PROJECT_ROOT / ".env", override=False)
+
+try:
+    import streamlit as st  # type: ignore[import-untyped]
+except ImportError:
+    st = None  # type: ignore[misc, assignment]
+
+
+def get_env_or_secret(key: str, default: Optional[str] = None) -> str:
+    """
+    Read from os.getenv (local/.env) or st.secrets (Streamlit). Raises if not found and no default.
+    """
+    value = os.getenv(key)
+    if value and str(value).strip():
+        return str(value).strip()
+    if st is not None:
+        try:
+            raw = st.secrets[key]
+            if raw is not None:
+                return str(raw).strip()
+        except Exception:
+            pass
+    if default is not None:
+        return default
+    raise RuntimeError(f"{key} not found in environment variables or Streamlit secrets")
+
+
+# OpenRouter – from .env (local) or st.secrets (Streamlit); API key required, URL/model have defaults
+OPENROUTER_API_KEY = get_env_or_secret("OPENROUTER_API_KEY")
+OPENROUTER_BASE_URL = get_env_or_secret("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+OPENROUTER_CHAT_MODEL = get_env_or_secret("OPENROUTER_CHAT_MODEL", "mistralai/mistral-7b-instruct")
 
 
 # Allowed Groww URLs used for ingestion (Phase 1) and as canonical sources.
@@ -109,5 +148,9 @@ __all__ = [
     "SUPPORTED_SCHEME_ATTRIBUTES",
     "ADVICE_KEYWORDS",
     "GUARDRAILS",
+    "get_env_or_secret",
+    "OPENROUTER_API_KEY",
+    "OPENROUTER_BASE_URL",
+    "OPENROUTER_CHAT_MODEL",
 ]
 

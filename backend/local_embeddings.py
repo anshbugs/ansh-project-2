@@ -20,6 +20,15 @@ def _get_model():
     We import SentenceTransformer lazily so that missing dependencies raise a
     clear, actionable error instead of a generic ImportError at import time.
     """
+    import logging
+    import os
+
+    # Suppress verbose "LOAD REPORT" / UNEXPECTED key messages from transformers
+    # (e.g. embeddings.position_ids with all-MiniLM-L6-v2). Model works correctly.
+    os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+    for _name in ("transformers", "sentence_transformers"):
+        logging.getLogger(_name).setLevel(logging.ERROR)
+
     try:
         from sentence_transformers import SentenceTransformer  # type: ignore[import]
     except ImportError as exc:  # pragma: no cover - environment dependent
