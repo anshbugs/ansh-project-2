@@ -22,6 +22,12 @@ interface ApiChatResponse {
 const initialBotMessage =
   "Hi, I’m your Groww Mutual Fund FAQ assistant. I can answer factual questions about selected HDFC mutual fund schemes and mutual fund charges using information from Groww’s public pages.\n\nI cannot provide investment advice, opinions, or recommendations.";
 
+const getApiBase = (): string => {
+  const base = import.meta.env.VITE_API_URL;
+  if (base && typeof base === "string") return base.replace(/\/$/, "");
+  return "";
+};
+
 export const ChatWidget: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -54,7 +60,9 @@ export const ChatWidget: React.FC = () => {
     setIsSending(true);
 
     try {
-      const res = await fetch("/api/chat", {
+      const apiBase = getApiBase();
+      const url = apiBase ? `${apiBase}/api/chat` : "/api/chat";
+      const res = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

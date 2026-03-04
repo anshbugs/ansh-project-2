@@ -76,3 +76,22 @@ python -m pip install sentence-transformers
 **Note:** The app needs the SQLite knowledge base (`data/kb.sqlite`) and embeddings. Either run the ingestion and embedding scripts locally and commit `data/kb.sqlite` to the repo (simple but the file can be large), or add a build step that runs fetch → parse → build_embeddings on first start.
 
 **Optional:** To avoid the "unauthenticated requests to the HF Hub" warning and get faster model downloads, add `HF_TOKEN` to your Streamlit Secrets (create a token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)).
+
+## Deploy frontend on Vercel
+
+Deploy the **React (Vite) frontend** to Vercel. The chat UI will call a backend API; you need to run the backend elsewhere and point the frontend to it.
+
+1. **Deploy the backend** (FastAPI) on Render, Railway, Fly.io, or similar:
+   - Use the same repo; run `uvicorn backend.app:app --host 0.0.0.0 --port 8000` (or the port your host uses).
+   - Set `OPENROUTER_API_KEY` (and optional `OPENROUTER_BASE_URL`, `OPENROUTER_CHAT_MODEL`) in the host’s environment.
+   - Ensure the knowledge base exists (run fetch_pages, parse_pages, build_embeddings once, or include `data/kb.sqlite` in the deploy).
+
+2. **Deploy the frontend on Vercel:**
+   - Go to [vercel.com](https://vercel.com), sign in, and **Add New Project**.
+   - Import your GitHub repo.
+   - Set **Root Directory** to `frontend` (or leave root and set Build/Output in the next step).
+   - **Build settings:** Root Directory `frontend`, Build Command `npm run build`, Output Directory `dist`, Install Command `npm install`.
+   - Add **Environment Variable:** `VITE_API_URL` = your backend URL (e.g. `https://your-app.onrender.com`) with **no trailing slash**. The frontend will call `{VITE_API_URL}/api/chat`.
+   - Deploy.
+
+3. **Local dev with backend:** In `frontend/.env` set `VITE_API_URL=http://127.0.0.1:8000` when running the FastAPI backend locally, or use a Vite proxy (see `frontend/vite.config.mts`).
