@@ -1,0 +1,29 @@
+# Environment and secrets (never commit API keys)
+.env
+.env.local
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.so
+.venv/
+venv/
+ENV/
+
+# Node
+frontend/node_modules/
+npm-debug.log*
+
+# Data (optional: remove this line if you want to commit kb.sqlite for Streamlit deploy)
+# data/*.sqlite
+
+# IDE / OS
+.idea/
+.vscode/
+.cursor/
+.DS_Store
+Thumbs.db
