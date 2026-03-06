@@ -39,11 +39,24 @@ export const ChatWidget: React.FC = () => {
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [backendStatus, setBackendStatus] = useState<"checking" | "ok" | "error" | "no-url">("checking");
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
+
+  useEffect(() => {
+    const apiBase = getApiBase();
+    if (!apiBase) {
+      setBackendStatus("no-url");
+      return;
+    }
+    fetch(`${apiBase}/api/health`, { method: "GET" })
+      .then((r) => (r.ok ? "ok" : "error"))
+      .then(setBackendStatus)
+      .catch(() => setBackendStatus("error"));
+  }, []);
 
   const sendMessage = async () => {
     const trimmed = input.trim();
@@ -62,6 +75,8 @@ export const ChatWidget: React.FC = () => {
     try {
       const apiBase = getApiBase();
       const url = apiBase ? `${apiBase}/api/chat` : "/api/chat";
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min for Render cold start
       const res = await fetch(url, {
         method: "POST",
         headers: {
@@ -72,7 +87,9 @@ export const ChatWidget: React.FC = () => {
             { role: "user", content: trimmed },
           ],
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -93,8 +110,11 @@ export const ChatWidget: React.FC = () => {
       };
       setMessages((prev) => [...prev, botMessage]);
     } catch (e: any) {
+      const isAbort = e?.name === "AbortError";
       setError(
-        e.message || "Something went wrong while contacting the assistant.",
+        isAbort
+          ? "Request took too long. The backend may be waking up—please try again."
+          : e.message || "Something went wrong while contacting the assistant.",
       );
     } finally {
       setIsSending(false);
@@ -129,7 +149,11 @@ export const ChatWidget: React.FC = () => {
             </div>
           </div>
           <div className="chat-status-pill">
-            <span className="chat-status-dot" /> Online
+            <span className="chat-status-dot" />
+            {backendStatus === "checking" && "Checking…"}
+            {backendStatus === "ok" && "Online"}
+            {backendStatus === "error" && "Backend unreachable"}
+            {backendStatus === "no-url" && "Set VITE_API_URL"}
           </div>
         </header>
 

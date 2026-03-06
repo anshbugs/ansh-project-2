@@ -6,7 +6,7 @@ services:
     region: oregon
     autoDeploy: true
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -k uvicorn.workers.UvicornWorker backend.app:app --bind 0.0.0.0:$PORT --timeout 120
+    startCommand: gunicorn -k uvicorn.workers.UvicornWorker backend.app:app --bind 0.0.0.0:$PORT --timeout 300 --workers 1
     healthCheckPath: /api/health
     envVars:
       - key: PYTHON_VERSION
