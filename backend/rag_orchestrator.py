@@ -2,6 +2,10 @@ from __future__ import annotations
 
 """
 Phase 3/4 – RAG orchestration: classify -> retrieve -> generate answer with single source URL.
+
+Lazy loading: embeddings and the sentence-transformers model are not loaded at server
+startup. They are loaded only when the first /api/chat request is handled. Retrieval
+uses batched embedding reads to keep memory bounded on low-memory hosts (e.g. Render).
 """
 
 from dataclasses import dataclass
