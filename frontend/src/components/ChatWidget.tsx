@@ -68,9 +68,7 @@ export const ChatWidget: React.FC = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          session_id: null,
           messages: [
-            ...messages.map((m) => ({ role: m.role, content: m.content })),
             { role: "user", content: trimmed },
           ],
         }),
