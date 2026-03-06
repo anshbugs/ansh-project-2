@@ -12,7 +12,6 @@ Groww Mutual Fund FAQ RAG chatbot prototype (Phases 0–3).
 
    This includes:
    - `sentence-transformers` for **local embeddings** (model `all-MiniLM-L6-v2`).
-   - `streamlit` for the Streamlit UI.
    - `fastapi`, `uvicorn`, and other backend/ingestion requirements.
 
 2. **Configure your OpenRouter chat API key** in `.env` (in the project root):
@@ -24,18 +23,6 @@ Groww Mutual Fund FAQ RAG chatbot prototype (Phases 0–3).
    ```
 
    OpenRouter is used **only for chat completions**. All embeddings are computed locally.
-
-## Run with Streamlit (recommended for deployment)
-
-From the project root:
-
-```bash
-streamlit run streamlit_app.py
-```
-
-Then open the URL shown in the terminal (e.g. http://localhost:8501). No separate API server is needed; the app uses the RAG backend directly.
-
-**First-time setup:** Ensure the knowledge base is built (see below) before using the chat.
 
 ## Run Phase 2 (embeddings) and Phase 3 (chat API)
 
@@ -83,10 +70,21 @@ Deploy **only the React (Vite) frontend** to Vercel. The chat UI will call a bac
 
 **Do not deploy the FastAPI backend on Vercel.** Vercel uses AWS Lambda, which has a **500 MB ephemeral storage limit**. This project’s dependencies (e.g. `sentence-transformers`, PyTorch) are much larger (~7GB), so the backend will not fit. Deploy the backend on **Render**, **Railway**, **Fly.io**, or similar instead.
 
-1. **Deploy the backend (FastAPI) on Render, Railway, or Fly.io** (not Vercel):
-   - Use the same repo; run `uvicorn backend.app:app --host 0.0.0.0 --port 8000` (or the port your host uses).
-   - Set `OPENROUTER_API_KEY` (and optional `OPENROUTER_BASE_URL`, `OPENROUTER_CHAT_MODEL`) in the host’s environment.
-   - Ensure the knowledge base exists (run fetch_pages, parse_pages, build_embeddings once, or include `data/kb.sqlite` in the deploy).
+1. **Deploy the backend (FastAPI) on Render** (recommended) (not Vercel):
+   - This repo includes a `render.yaml` that Render can auto-detect.
+   - In Render: **New → Blueprint** and select your GitHub repo.
+   - Set required environment variables:
+     - `OPENROUTER_API_KEY` (required)
+     - `OPENROUTER_CHAT_MODEL` (optional; default is `openrouter/auto`)
+     - `OPENROUTER_BASE_URL` (optional; default is `https://openrouter.ai/api/v1`)
+   - Set CORS so your frontend can call the backend:
+     - `CORS_ALLOW_ORIGINS` = a comma-separated list of origins
+       - Example: `https://your-frontend.vercel.app,http://localhost:5173`
+       - Do not add a trailing slash
+   - Confirm health after deploy: open `{YOUR_RENDER_URL}/api/health` and expect `{"status":"ok"}`.
+   - **Knowledge base requirement:** the backend answers from the SQLite KB at `data/kb.sqlite`.
+     - Simplest: build it locally (fetch → parse → embeddings) and commit `data/kb.sqlite` to the repo.
+     - Or: create a Render persistent disk and populate `data/kb.sqlite` via a one-time run (advanced).
 
 2. **Deploy only the frontend on Vercel** (Root Directory = `frontend`):
    - Go to [vercel.com](https://vercel.com), sign in, and **Add New Project**.

@@ -12,6 +12,25 @@ from functools import lru_cache
 from typing import List
 
 
+def _ensure_hf_cache_local():
+    """
+    Use a local cache dir to avoid Errno 22 on Windows when project/cache
+    is under OneDrive. Must run before any HuggingFace/sentence-transformers import.
+    """
+    import os
+
+    if os.name != "nt":
+        return
+    # LOCALAPPDATA (C:\\Users\\...\\AppData\\Local) is typically not synced by OneDrive
+    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    cache_dir = os.path.join(base, "hf_cache")
+    os.makedirs(cache_dir, exist_ok=True)
+    os.environ.setdefault("HF_HOME", cache_dir)
+    os.environ.setdefault("TRANSFORMERS_CACHE", cache_dir)
+    os.environ.setdefault("SENTENCE_TRANSFORMERS_HOME", cache_dir)
+    os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+
+
 @lru_cache(maxsize=1)
 def _get_model():
     """
@@ -22,6 +41,8 @@ def _get_model():
     """
     import logging
     import os
+
+    _ensure_hf_cache_local()
 
     # Suppress verbose "LOAD REPORT" / UNEXPECTED key messages from transformers
     # (e.g. embeddings.position_ids with all-MiniLM-L6-v2). Model works correctly.
@@ -37,7 +58,9 @@ def _get_model():
             "Please run `python -m pip install sentence-transformers` and retry."
         ) from exc
 
-    return SentenceTransformer("all-MiniLM-L6-v2")
+    cache_dir = os.environ.get("HF_HOME") or os.environ.get("TRANSFORMERS_CACHE")
+    kwargs = {"cache_folder": cache_dir} if cache_dir else {}
+    return SentenceTransformer("all-MiniLM-L6-v2", **kwargs)
 
 
 def embed_texts(texts: List[str]) -> List[List[float]]:

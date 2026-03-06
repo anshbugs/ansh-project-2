@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: groww-mf-rag-backend
+    env: python
+    plan: free
+    region: oregon
+    autoDeploy: true
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -k uvicorn.workers.UvicornWorker backend.app:app --bind 0.0.0.0:$PORT --timeout 120
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      # Required (set this in Render Dashboard with your real key if you prefer)
+      - key: OPENROUTER_API_KEY
+        sync: false
+      # Optional
+      - key: OPENROUTER_BASE_URL
+        value: https://openrouter.ai/api/v1
+      - key: OPENROUTER_CHAT_MODEL
+        value: openrouter/auto
+      # CORS: set to your frontend origin(s), comma-separated.
+      # Example: https://your-frontend.vercel.app
+      - key: CORS_ALLOW_ORIGINS
+        sync: false
+      # Cache model downloads on Render disk/container
+      - key: HF_HOME
+        value: /opt/render/project/.cache/huggingface
+      - key: TRANSFORMERS_CACHE
+        value: /opt/render/project/.cache/huggingface
