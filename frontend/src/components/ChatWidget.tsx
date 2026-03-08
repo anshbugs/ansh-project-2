@@ -48,11 +48,12 @@ export const ChatWidget: React.FC = () => {
 
   useEffect(() => {
     const apiBase = getApiBase();
+    // When apiBase is empty we use same-origin (Vite proxy to backend), so check /api/health
+    const healthUrl = apiBase ? `${apiBase}/api/health` : "/api/health";
     if (!apiBase) {
-      setBackendStatus("no-url");
-      return;
+      setBackendStatus("checking");
     }
-    fetch(`${apiBase}/api/health`, { method: "GET" })
+    fetch(healthUrl, { method: "GET" })
       .then((r) => (r.ok ? "ok" : "error"))
       .then(setBackendStatus)
       .catch(() => setBackendStatus("error"));
@@ -94,16 +95,24 @@ export const ChatWidget: React.FC = () => {
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         const detail =
+          (body && typeof body.detail === "string" && body.detail) ||
           (body && body.detail) ||
           "Unable to get a response from the assistant.";
         throw new Error(detail);
       }
 
-      const data: ApiChatResponse = await res.json();
+      const data: ApiChatResponse = await res.json().catch(() => null);
+      if (!data || typeof data !== "object") {
+        throw new Error("Invalid response from the server. Please try again.");
+      }
+      const answerText =
+        data.answer != null && String(data.answer).trim()
+          ? String(data.answer).trim()
+          : "No answer was generated. Please try again or rephrase your question.";
       const botMessage: Message = {
         id: `msg-${Date.now()}-bot`,
         role: "assistant",
-        content: data.answer,
+        content: answerText,
         sourceUrl: data.source_url,
         intentType: data.intent_type,
         refusal: data.refusal,
