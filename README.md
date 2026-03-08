@@ -71,6 +71,8 @@ Deploy the **all-in-one chat app** (RAG + Streamlit UI) on Streamlit. No separat
 
 5. Deploy. The first run will install dependencies and may download the sentence-transformers model.
 
+**If the build fails:** In Streamlit Cloud, open **Advanced settings** when creating the app and set **Python version** to **3.11** (recommended for sentence-transformers). Ensure **Main file path** is `streamlit_app.py` and the repo root is the app root.
+
 **Note:** The app needs the knowledge base (`data/kb.sqlite`). Build it locally (fetch_pages → parse_pages → build_embeddings) and commit `data/kb.sqlite`, or run ingestion in a one-off job if your host supports it.
 
 ## Deploy frontend on Vercel

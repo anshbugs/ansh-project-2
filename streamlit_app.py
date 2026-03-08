@@ -15,7 +15,6 @@ OPENROUTER_BASE_URL, OPENROUTER_CHAT_MODEL) in App settings → Secrets.
 
 from __future__ import annotations
 
-import html
 import os
 import sys
 from pathlib import Path
@@ -28,13 +27,21 @@ os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
 
 import streamlit as st
 
-# Load Streamlit secrets into env so backend can use them on Streamlit Cloud
+# Must be first Streamlit command (required by Streamlit Cloud)
+st.set_page_config(
+    page_title="Groww MF Assistant",
+    page_icon="https://groww.in/groww-logo-270.png",
+    layout="centered",
+    initial_sidebar_state="collapsed",
+)
+
+# Load Streamlit secrets into env so backend.config can use them on Streamlit Cloud
 try:
     if hasattr(st, "secrets") and st.secrets:
         for key in ("OPENROUTER_API_KEY", "OPENROUTER_BASE_URL", "OPENROUTER_CHAT_MODEL"):
             try:
-                val = st.secrets.get(key)
-                if val and (not os.environ.get(key) or not str(os.environ.get(key)).strip()):
+                val = st.secrets.get(key) if hasattr(st.secrets, "get") else getattr(st.secrets, key, None)
+                if val is not None and str(val).strip():
                     os.environ[key] = str(val).strip()
             except Exception:
                 pass
@@ -47,13 +54,6 @@ from backend.rag_orchestrator import chat, ChatResponse
 if not OPENROUTER_API_KEY or not str(OPENROUTER_API_KEY).strip():
     st.error("OPENROUTER_API_KEY not set. Add it to .env (local) or Streamlit Secrets (deployed).")
     st.stop()
-
-st.set_page_config(
-    page_title="Groww MF Assistant",
-    page_icon="https://groww.in/groww-logo-270.png",
-    layout="centered",
-    initial_sidebar_state="collapsed",
-)
 
 WELCOME = (
     "Hi, I'm your Groww Mutual Fund FAQ assistant. I can answer factual questions "
