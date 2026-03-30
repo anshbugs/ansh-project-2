@@ -53,36 +53,80 @@ if not OPENROUTER_API_KEY or not str(OPENROUTER_API_KEY).strip():
     st.error("OPENROUTER_API_KEY not set. Add it to .env (local) or Streamlit Secrets (deployed).")
     st.stop()
 
-SAMPLE_QUESTIONS = [
-    "What is the expense ratio of HDFC Mid Cap Fund?",
-    "What is the exit load for HDFC Equity Fund?",
-    "What are the charges involved in mutual funds?",
-    "What is NAV and how is it calculated?",
-    "What is an exit load in mutual funds?",
-    "What is the expense ratio in mutual funds?",
-    "What is SIP and how does it work?",
-    "What is a lump sum investment in mutual funds?",
-    "What is the minimum SIP amount for HDFC funds on Groww?",
-    "How are mutual fund returns taxed in India?",
-    "What is STP and SWP in mutual funds?",
-    "What is the difference between direct and regular mutual fund plans?",
-    "What is the difference between growth and IDCW options?",
-    "How does a mutual fund scheme’s AUM affect investors?",
-    "What is the lock-in period for ELSS mutual funds?",
-    "What is the risk level of HDFC Mid Cap Fund?",
-    "What is the fund manager for HDFC Equity Fund?",
-    "What is the category of HDFC Equity Fund?",
-    "What is the benchmark index for HDFC Equity Fund?",
-    "What is the investment objective of HDFC Mid Cap Fund?",
-    "What is the minimum lump sum investment for HDFC Mid Cap Fund?",
-    "What is the minimum SIP investment for HDFC Equity Fund?",
-    "What is the exit load for HDFC Mid Cap Fund?",
-    "What is the expense ratio of HDFC Equity Fund?",
-    "What is the portfolio turnover ratio and why does it matter?",
-    "What happens if I stop SIP payments?",
-    "How long should I stay invested in an equity mutual fund?",
-    "How do mutual fund charges impact returns over time?",
+SCHEMES = [
+    "HDFC Mid Cap Fund",
+    "HDFC Equity Fund",
+    "HDFC Arbitrage Fund",
+    "HDFC Liquid Fund",
+    "HDFC Value Fund",
+    "HDFC Tax Saver Fund",
 ]
+
+QUESTION_LIBRARY = {
+    "Basics (Mutual Funds)": [
+        "What are mutual funds?",
+        "How do mutual funds work?",
+        "What is NAV in mutual funds?",
+        "How is NAV calculated?",
+        "What is the difference between SIP and lump sum?",
+        "What is SIP and how does it work?",
+        "What is a lump sum investment in mutual funds?",
+        "What is the difference between direct and regular mutual fund plans?",
+        "What is the difference between growth and IDCW options?",
+        "What is AUM in mutual funds?",
+        "What is the benchmark index in mutual funds?",
+        "What is the risk level in mutual funds and what does it mean?",
+    ],
+    "Charges & Fees": [
+        "What is an expense ratio in mutual funds?",
+        "What is expense ratio and how is it charged?",
+        "What is exit load in mutual funds?",
+        "When is exit load applicable?",
+        "What are the charges applicable for redeeming mutual funds on Groww?",
+        "Are there any charges for switching mutual funds?",
+        "Are there any charges for investing in mutual funds on Groww?",
+        "How do mutual fund charges impact returns over time?",
+    ],
+    "Reports (Groww)": [
+        "What mutual fund reports are available on Groww?",
+        "How can I download mutual fund reports on Groww?",
+        "What information is included in mutual fund reports?",
+    ],
+    "HDFC AMC (Facts)": [
+        "What is HDFC Mutual Funds (AMC)?",
+        "Which mutual fund schemes are offered by HDFC Mutual Funds on Groww?",
+    ],
+    "Scheme facts (HDFC)": [],
+}
+
+# Scheme-specific factual questions for ALL supported attributes / pages in scope.
+for scheme in SCHEMES:
+    QUESTION_LIBRARY["Scheme facts (HDFC)"].extend(
+        [
+            f"What is the expense ratio of {scheme}?",
+            f"What is the exit load of {scheme}?",
+            f"What is the minimum SIP amount of {scheme}?",
+            f"What is the minimum lump sum amount of {scheme}?",
+            f"What is the risk level of {scheme}?",
+            f"What is the benchmark index of {scheme}?",
+            f"What is the category of {scheme}?",
+            f"Which AMC manages {scheme}?",
+        ]
+    )
+
+def _unique_keep_order(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for x in items:
+        k = x.strip()
+        if not k or k in seen:
+            continue
+        seen.add(k)
+        out.append(k)
+    return out
+
+
+ALL_SAMPLE_QUESTIONS = _unique_keep_order([q for qs in QUESTION_LIBRARY.values() for q in qs])
 
 WELCOME = (
     "Hi, I'm your Groww Mutual Fund FAQ assistant. I can answer factual questions "
@@ -103,6 +147,14 @@ if "show_samples" not in st.session_state:
     st.session_state.show_samples = False
 if "pending_prompt" not in st.session_state:
     st.session_state.pending_prompt = None
+if "topic" not in st.session_state:
+    st.session_state.topic = "All"
+if "home_query" not in st.session_state:
+    st.session_state.home_query = ""
+if "chat_query" not in st.session_state:
+    st.session_state.chat_query = ""
+if "chat_limit" not in st.session_state:
+    st.session_state.chat_limit = 18
 
 # Minimal card-style CSS
 st.markdown("""
@@ -129,6 +181,35 @@ div.stButton > button:hover {
   background: rgba(34,197,94,0.14);
   border: 1px solid rgba(34,197,94,0.40);
   transform: translateY(-1px);
+}
+
+/* Homepage hero */
+.groww-hero {
+  padding: 18px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(34,197,94,0.22);
+  background:
+    radial-gradient(900px 340px at 8% 0%, rgba(0, 203, 112, 0.18) 0%, rgba(2,6,23,0) 55%),
+    linear-gradient(180deg, rgba(2,6,23,0.5) 0%, rgba(2,6,23,0.15) 100%);
+}
+.groww-kicker {
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(203, 213, 225, 0.85);
+}
+.groww-title {
+  margin-top: 8px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  color: #f8fafc;
+}
+.groww-subtitle {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: rgba(226, 232, 240, 0.9);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -180,10 +261,40 @@ if st.session_state.page == "home":
     _render_header("Your mini mutual fund friend — facts from Groww pages")
 
     st.markdown(
-        "Ask factual questions about **mutual fund charges**, **expense ratios**, **exit loads**, and "
-        "**selected HDFC mutual fund scheme details** — answered from Groww’s public pages.\n\n"
-        "When you’re ready, jump into the chat and just click a question to ask it."
+        """
+<div class="groww-hero">
+  <div class="groww-kicker">Groww • Mutual Funds • Facts only</div>
+  <div class="groww-title">Meet your Mini Mutual Fund Friend</div>
+  <div class="groww-subtitle">
+    Ask factual questions about <b>expense ratios</b>, <b>exit loads</b>, <b>redemption charges</b>,
+    and <b>selected HDFC mutual fund scheme facts</b> — answered from Groww’s public pages.
+    No recommendations, no opinions.
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
     )
+
+    m = st.columns(3)
+    with m[0]:
+        st.metric("In-scope schemes", str(len(SCHEMES)))
+    with m[1]:
+        st.metric("Sample questions", str(len(ALL_SAMPLE_QUESTIONS)))
+    with m[2]:
+        st.metric("Topics", str(len(QUESTION_LIBRARY.keys())))
+
+    st.markdown("### Explore")
+    tcols = st.columns([1, 1])
+    with tcols[0]:
+        st.session_state.topic = st.selectbox(
+            "Pick a topic",
+            ["All"] + list(QUESTION_LIBRARY.keys()),
+            index=(["All"] + list(QUESTION_LIBRARY.keys())).index(st.session_state.topic)
+            if st.session_state.topic in (["All"] + list(QUESTION_LIBRARY.keys()))
+            else 0,
+        )
+    with tcols[1]:
+        st.session_state.home_query = st.text_input("Search questions", value=st.session_state.home_query)
 
     cols = st.columns([1, 1])
     with cols[0]:
@@ -196,14 +307,36 @@ if st.session_state.page == "home":
 
     if st.session_state.show_samples:
         st.markdown("### Sample questions")
+        # Filter library by topic + search
+        topic = st.session_state.topic
+        if topic != "All":
+            base = QUESTION_LIBRARY.get(topic, [])
+        else:
+            base = ALL_SAMPLE_QUESTIONS
+
+        q = (st.session_state.home_query or "").strip().lower()
+        filtered = [x for x in base if (q in x.lower())] if q else list(base)
+        filtered = _unique_keep_order(filtered)
+
+        st.caption(f"Showing **{len(filtered)}** questions. Click any question on the chat screen to ask instantly.")
+
         holder = st.empty()
         # Reveal one-by-one as an animation, only after clicking the button.
-        for i in range(st.session_state.samples_revealed, len(SAMPLE_QUESTIONS)):
+        for i in range(st.session_state.samples_revealed, len(filtered)):
             st.session_state.samples_revealed = i + 1
             with holder.container():
-                for q in SAMPLE_QUESTIONS[: st.session_state.samples_revealed]:
-                    st.markdown(f"- {q}")
+                for text in filtered[: st.session_state.samples_revealed]:
+                    st.markdown(f"- {text}")
             time.sleep(0.06)
+
+        st.markdown("### Ask by click (no typing)")
+        click_cols = st.columns(2)
+        for idx, text in enumerate(filtered[: min(len(filtered), 12)]):
+            with click_cols[idx % 2]:
+                if st.button(text, key=f"home_click_{idx}", use_container_width=True):
+                    st.session_state.pending_prompt = text
+                    st.session_state.page = "chat"
+                    st.rerun()
 
 elif st.session_state.page == "chat":
     _render_header("Interactive RAG chatbot (click questions, don’t type)")
@@ -219,12 +352,37 @@ elif st.session_state.page == "chat":
             st.session_state.pending_prompt = None
             st.rerun()
 
-    st.markdown("**Click to ask:**")
+    st.markdown("### Click to ask")
+    f1, f2 = st.columns([1, 1])
+    with f1:
+        chat_topic = st.selectbox(
+            "Topic",
+            ["All"] + list(QUESTION_LIBRARY.keys()),
+            key="chat_topic_select",
+        )
+    with f2:
+        st.session_state.chat_query = st.text_input("Search", value=st.session_state.chat_query, key="chat_search_input")
+
+    if chat_topic != "All":
+        base = QUESTION_LIBRARY.get(chat_topic, [])
+    else:
+        base = ALL_SAMPLE_QUESTIONS
+
+    q = (st.session_state.chat_query or "").strip().lower()
+    filtered = [x for x in base if (q in x.lower())] if q else list(base)
+    filtered = _unique_keep_order(filtered)
+
+    st.caption(f"Question library: **{len(filtered)}** results.")
+
+    if st.button("Load more", use_container_width=True):
+        st.session_state.chat_limit = min(st.session_state.chat_limit + 18, len(filtered))
+        st.rerun()
+
     grid = st.columns(2)
-    for idx, q in enumerate(SAMPLE_QUESTIONS[:16]):
+    for idx, text in enumerate(filtered[: st.session_state.chat_limit]):
         with grid[idx % 2]:
-            if st.button(q, key=f"sample_q_{idx}", use_container_width=True):
-                st.session_state.pending_prompt = q
+            if st.button(text, key=f"chat_click_{idx}", use_container_width=True):
+                st.session_state.pending_prompt = text
                 st.rerun()
 
     st.markdown("---")
