@@ -49,33 +49,26 @@ python -m pip install sentence-transformers
 From the project root:
 
 ```bash
-uvicorn backend.app:app --host 127.0.0.1 --port 8000
 streamlit run streamlit_app.py
 ```
 
-Then open the URL shown (e.g. http://localhost:8501). The Streamlit UI calls the FastAPI backend at `http://127.0.0.1:8000`.
+Then open the URL shown (e.g. http://localhost:8501). No separate API server is needed; the Streamlit app runs the RAG pipeline in-process.
 
-## Deploy (Streamlit UI + hosted API)
+## Deploy on Streamlit Community Cloud (UI + backend in one)
 
-This repo uses **Streamlit for the UI** and **FastAPI for the backend**.
+Streamlit Community Cloud runs a **single app process**, so this repo deploys as an **all-in-one Streamlit app** (UI + backend logic together).
 
-1. **Deploy the FastAPI backend** (Render / Fly.io / Railway / your VPS / Docker).
-2. **Deploy the Streamlit UI** on Streamlit Community Cloud:
-   - Main file path: `streamlit_app.py`
-   - Add Streamlit **Secrets**:
+1. Push the repo to GitHub.
+2. Go to [share.streamlit.io](https://share.streamlit.io) → **New app**.
+3. Repo: this repo, branch `main`, **Main file path:** `streamlit_app.py`.
+4. Add Streamlit **Secrets** (App settings → Secrets):
 
-     ```toml
-     BACKEND_URL = "https://your-backend-host"
-     ```
+   ```toml
+   OPENROUTER_API_KEY = "your-openrouter-api-key"
+   OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+   OPENROUTER_CHAT_MODEL = "openrouter/auto"
+   ```
 
-3. **Required backend env vars** (set them where you host FastAPI):
-   - `OPENROUTER_API_KEY` (required)
-   - `OPENROUTER_BASE_URL` (optional; default `https://openrouter.ai/api/v1`)
-   - `OPENROUTER_CHAT_MODEL` (optional; default `openrouter/auto`)
-
-Confirm the backend:
-- `GET {BACKEND_URL}/api/health` → `{"status":"ok"}`
-
-**Note:** The backend needs the knowledge base (`data/kb.sqlite`). Build it locally (fetch_pages → parse_pages → build_embeddings) and commit `data/kb.sqlite`, or populate it on the host via a one-off ingestion run.
+**Note:** The app needs the knowledge base (`data/kb.sqlite`). Build it locally (fetch_pages → parse_pages → build_embeddings) and commit `data/kb.sqlite`, or run ingestion in a one-off job if your host supports it.
 
 **(Removed)** The previous React/Vercel frontend has been removed in favor of Streamlit.
