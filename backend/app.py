@@ -65,7 +65,7 @@ def root():
         "docs": "/docs",
         "health": "/api/health",
         "chat": "POST /api/chat",
-        "hint": "For the chat UI, run the frontend (npm run dev in frontend/) and open http://localhost:5173",
+        "hint": "For the chat UI, run Streamlit: `streamlit run streamlit_app.py` and ensure this API is reachable.",
     }
 
 

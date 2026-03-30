@@ -2,7 +2,6 @@
 .env
 .env.local
 .streamlit/secrets.toml
-frontend/.env
 
 # Python
 __pycache__/
@@ -14,10 +13,6 @@ __pycache__/
 .venv/
 venv/
 ENV/
-
-# Node
-frontend/node_modules/
-npm-debug.log*
 
 # Data (optional: remove this line if you want to commit kb.sqlite for Streamlit deploy)
 # data/*.sqlite

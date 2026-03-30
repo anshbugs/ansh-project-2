@@ -1,16 +1,14 @@
 """
 Groww Mutual Fund FAQ Chat — Streamlit app.
 
-Runs the RAG pipeline in-process: no separate backend API.
-- Uses backend.rag_orchestrator (classify → retrieve → generate).
-- OpenRouter is called via backend.openrouter_client.
-- Embeddings and retriever are unchanged (local embeddings + SQLite).
+Frontend-only Streamlit UI that talks to the FastAPI backend:
+- GET  /api/health
+- POST /api/chat
 
 Run from project root:
     streamlit run streamlit_app.py
 
-On Streamlit Community Cloud: set OPENROUTER_API_KEY (and optionally
-OPENROUTER_BASE_URL, OPENROUTER_CHAT_MODEL) in App settings → Secrets.
+On Streamlit Community Cloud: set BACKEND_URL in App settings → Secrets.
 """
 
 from __future__ import annotations
@@ -18,6 +16,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 _ROOT = Path(__file__).resolve().parent
 if str(_ROOT) not in sys.path:
@@ -25,6 +24,7 @@ if str(_ROOT) not in sys.path:
 
 os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
 
+import requests
 import streamlit as st
 
 # Must be first Streamlit command (required by Streamlit Cloud)
@@ -35,10 +35,10 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# Load Streamlit secrets into env so backend.config can use them on Streamlit Cloud
+# Load Streamlit secrets into env (Streamlit Cloud)
 try:
     if hasattr(st, "secrets") and st.secrets:
-        for key in ("OPENROUTER_API_KEY", "OPENROUTER_BASE_URL", "OPENROUTER_CHAT_MODEL"):
+        for key in ("BACKEND_URL",):
             try:
                 val = st.secrets.get(key) if hasattr(st.secrets, "get") else getattr(st.secrets, key, None)
                 if val is not None and str(val).strip():
@@ -48,12 +48,30 @@ try:
 except Exception:
     pass
 
-from backend.config import OPENROUTER_API_KEY
-from backend.rag_orchestrator import chat, ChatResponse
+DEFAULT_BACKEND_URL = os.environ.get("BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
 
-if not OPENROUTER_API_KEY or not str(OPENROUTER_API_KEY).strip():
-    st.error("OPENROUTER_API_KEY not set. Add it to .env (local) or Streamlit Secrets (deployed).")
-    st.stop()
+def _post_chat(backend_url: str, messages: List[Dict[str, str]], session_id: Optional[str]) -> Dict[str, Any]:
+    r = requests.post(
+        f"{backend_url}/api/chat",
+        json={"session_id": session_id, "messages": messages},
+        timeout=90,
+    )
+    if r.status_code >= 400:
+        try:
+            payload = r.json()
+            detail = payload.get("detail") if isinstance(payload, dict) else None
+        except Exception:
+            detail = None
+        raise RuntimeError(detail or f"Backend error {r.status_code}: {r.text}")
+    return r.json()
+
+
+def _health(backend_url: str) -> bool:
+    try:
+        r = requests.get(f"{backend_url}/api/health", timeout=8)
+        return r.ok
+    except Exception:
+        return False
 
 WELCOME = (
     "Hi, I'm your Groww Mutual Fund FAQ assistant. I can answer factual questions "
@@ -62,6 +80,10 @@ WELCOME = (
     "I cannot provide investment advice, opinions, or recommendations."
 )
 
+if "backend_url" not in st.session_state:
+    st.session_state.backend_url = DEFAULT_BACKEND_URL
+if "session_id" not in st.session_state:
+    st.session_state.session_id = None
 if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "assistant", "content": WELCOME, "source_url": None}]
 if "error" not in st.session_state:
@@ -70,29 +92,49 @@ if "error" not in st.session_state:
 # Minimal card-style CSS
 st.markdown("""
 <style>
-.stApp { background: linear-gradient(180deg, #0f172a 0%, #020617 100%); }
-.main .block-container { max-width: 420px; margin: 24px auto; padding: 0; }
-.main .block-container > div { background: rgba(15,23,42,0.95); border-radius: 12px; padding: 16px; margin-bottom: 8px; }
+.stApp { background: radial-gradient(1200px 600px at 10% 0%, rgba(34,197,94,0.10) 0%, rgba(2,6,23,0) 60%), linear-gradient(180deg, #0b1220 0%, #020617 100%); }
+.main .block-container { max-width: 560px; margin: 26px auto; padding: 0; }
+.main .block-container > div { background: rgba(15,23,42,0.92); border: 1px solid rgba(148,163,184,0.18); border-radius: 16px; padding: 18px; margin-bottom: 10px; box-shadow: 0 18px 60px rgba(0,0,0,0.45); }
 header { visibility: hidden; }
 footer { visibility: hidden; }
+
+/* Chat typography */
+.stChatMessage .stMarkdown p { font-size: 0.98rem; line-height: 1.55; letter-spacing: 0.1px; }
+.stChatMessage [data-testid="stChatMessageContent"] { padding-top: 6px; }
 </style>
 """, unsafe_allow_html=True)
 
+# Sidebar controls
+with st.sidebar:
+    st.markdown("### Settings")
+    st.session_state.backend_url = st.text_input("Backend URL", value=st.session_state.backend_url).rstrip("/")
+    st.session_state.session_id = st.text_input("Session ID (optional)", value=st.session_state.session_id or "").strip() or None
+    st.caption("Tip: for Docker Compose, use `http://backend:8000`.")
+
 # Header
-st.markdown("""
+online = _health(st.session_state.backend_url)
+status_dot = "#22c55e" if online else "#f59e0b"
+status_text = "Online" if online else "Offline"
+st.markdown(f"""
 <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid rgba(148,163,184,0.25);">
   <div style="display:flex;align-items:center;gap:10px;">
     <img src="https://groww.in/groww-logo-270.png" alt="Groww" style="height:28px;border-radius:6px;" />
     <div>
       <div style="font-size:15px;font-weight:600;color:#f9fafb;">Groww Mutual Fund Assistant</div>
-      <div style="font-size:12px;color:#e5e7eb;">Factual answers from Groww's HDFC MF pages</div>
+      <div style="font-size:12px;color:#cbd5e1;">Interactive RAG chatbot (Streamlit UI → FastAPI backend)</div>
     </div>
   </div>
-  <span style="font-size:11px;color:#22c55e;">● Online</span>
+  <span style="font-size:11px;color:{status_dot};">● {status_text}</span>
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown("**Try asking:** Expense ratio of HDFC Mid Cap Fund · Exit load for HDFC Equity Fund")
+st.markdown("**Try asking:** Expense ratio of HDFC Mid Cap Fund · Exit load for HDFC Equity Fund · What are the charges?")
+
+if not online:
+    st.warning(
+        f"Backend not reachable at `{st.session_state.backend_url}`. "
+        "Start the API with `uvicorn backend.app:app --host 127.0.0.1 --port 8000` or update the URL in the sidebar."
+    )
 
 if st.session_state.error:
     st.error(st.session_state.error)
@@ -109,11 +151,15 @@ if prompt := st.chat_input("Ask about HDFC mutual fund facts, charges…"):
     st.session_state.error = None
     with st.spinner("Thinking…"):
         try:
-            resp: ChatResponse = chat(prompt)
+            payload = _post_chat(
+                st.session_state.backend_url,
+                [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages if m["role"] in ("user", "assistant")],
+                st.session_state.session_id,
+            )
             st.session_state.messages.append({
                 "role": "assistant",
-                "content": resp.answer,
-                "source_url": resp.source_url,
+                "content": (payload.get("answer") or "").strip() or "No answer was generated. Please try again.",
+                "source_url": payload.get("source_url"),
             })
         except Exception as e:
             err = str(e)
